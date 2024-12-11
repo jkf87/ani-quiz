@@ -13,22 +13,18 @@ async def process_video(url):
     
     worksheet = YouTubeWorksheet(API_KEY)
     
-    try:
-        # 자막 추출
-        transcript = await asyncio.to_thread(worksheet.get_transcript, url)
-        if not transcript:
-            return "자막을 추출할 수 없습니다.", None
-        
-        # 워크시트 생성
-        content = await asyncio.to_thread(worksheet.create_worksheet, transcript)
-        
-        # DOCX 파일로 저장
-        output_file = await asyncio.to_thread(worksheet.save_to_docx, content)
-        
-        return f"워크시트가 생성되었습니다. 파일명: {output_file}", output_file
+    # 자막 추출
+    transcript = await asyncio.to_thread(worksheet.get_transcript, url)
+    if not transcript:
+        return "자막을 추출할 수 없습니다.", None
     
-    except Exception as e:
-        return f"오류가 발생했습니다: {str(e)}", None
+    # 워크시트 생성
+    content = await asyncio.to_thread(worksheet.create_worksheet, transcript)
+    
+    # DOCX 파일로 저장
+    output_file = await asyncio.to_thread(worksheet.save_to_docx, content)
+    
+    return f"워크시트가 생성되었습니다. 파일명: {output_file}", output_file
 
 def main():
     # 필요하다면 로컬 개발 시 .env 로딩
