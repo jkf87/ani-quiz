@@ -1,28 +1,19 @@
 from youtube_transcript_api import YouTubeTranscriptApi
 import google.generativeai as genai
+from googleapiclient.discovery import build
 from docx import Document
 import re
 import os
-import requests
-from requests.exceptions import RequestException
-import http.client
-http.client.HTTPConnection.debuglevel = 1
 
 class YouTubeWorksheet:
-    def __init__(self, api_key):
+    def __init__(self, gemini_api_key, youtube_api_key):
         # Gemini API 초기화
-        genai.configure(api_key=api_key)
+        genai.configure(api_key=gemini_api_key)
         self.model = genai.GenerativeModel('gemini-1.5-pro')
         
-        # 프록시 설정 (환경 변수에서 가져오기)
-        self.proxies = {
-            'http': os.getenv('HTTP_PROXY'),
-            'https': os.getenv('HTTPS_PROXY')
-        }
+        # YouTube API 초기화
+        self.youtube = build('youtube', 'v3', developerKey=youtube_api_key)
         
-        # 타임아웃 설정
-        self.timeout = 30
-
     def get_video_id(self, url):
         # YouTube URL에서 video ID 추출
         video_id = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11}).*', url)
@@ -34,31 +25,23 @@ class YouTubeWorksheet:
             return None
             
         try:
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-                    transcript = transcript_list.find_transcript(['en', 'ko'])
-                    
-                    # 프록시 설정이 있는 경우에만 세션 사용
-                    if any(self.proxies.values()):
-                        session = requests.Session()
-                        session.proxies = self.proxies
-                        session.timeout = self.timeout
-                    
-                    result = transcript.fetch()
-                    return ' '.join([entry['text'] for entry in result])
-                    
-                except Exception as e:
-                    if attempt == max_retries - 1:
-                        raise
-                    print(f"시도 {attempt + 1} 실패: {str(e)}. 재시도 중...")
-                    continue
-                    
+            # YouTube API로 비디오 정보 확인
+            video_response = self.youtube.videos().list(
+                part='snippet',
+                id=video_id
+            ).execute()
+            
+            if not video_response['items']:
+                return None
+                
+            # 자막 가져오기
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            transcript = transcript_list.find_transcript(['en', 'ko'])
+            return ' '.join([entry['text'] for entry in transcript.fetch()])
+            
         except Exception as e:
             print(f"자막 추출 오류: {e}")
             print(f"비디오 ID: {video_id}")
-            print(f"프록시 설정: {self.proxies}")
             return None
 
     def create_worksheet(self, transcript):
