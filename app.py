@@ -8,7 +8,7 @@ def process_video(url):
     API_KEY = os.getenv('GEMINI_API_KEY')
     
     if not API_KEY:
-        return "ERROR: GEMINI_API_KEY가 설정되지 않았습니다. .env 파일을 확인해주세요."
+        return "ERROR: GEMINI_API_KEY가 설정되지 않았습니다. 환경변수를 확인해주세요."
     
     worksheet = YouTubeWorksheet(API_KEY)
     
@@ -26,7 +26,9 @@ def process_video(url):
     return f"워크시트가 생성되었습니다. 파일명: {output_file}", output_file
 
 def main():
-    # Gradio 인터페이스 실행
+    # 필요하다면 로컬 개발 시 .env 로딩
+    load_dotenv()
+    
     iface = gr.Interface(
         fn=process_video,
         inputs=[gr.Textbox(label="YouTube URL을 입력하세요")],
@@ -34,8 +36,9 @@ def main():
         title="YouTube 학습 워크시트 생성기",
         description="YouTube 영상의 자막을 이용하여 학습 워크시트를 생성합니다."
     )
-    iface.launch(share=True)
+    # Render/Railway 등의 서비스에서 할당하는 PORT를 사용
+    port = int(os.environ.get("PORT", 7860))
+    iface.launch(server_name="0.0.0.0", server_port=port)
 
 if __name__ == '__main__':
-    load_dotenv()
-    main() 
+    main()
