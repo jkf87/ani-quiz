@@ -4,6 +4,7 @@ import gradio as gr
 import os
 import asyncio
 from pathlib import Path
+import time
 
 # 임시 파일 저장을 위한 디렉토리 설정
 UPLOAD_DIR = Path("temp_files")
@@ -31,7 +32,7 @@ async def process_video(url):
             return f"자막 추출 중 오류 발생: {str(e)}", None
             
         if not transcript:
-            return "자막을 추출할 수 없습니다. 영상에 영어 또는 한국어 자막이 있는지 확인해주세요.", None
+            return "자막을 추출할 수 없습니다. 영상에 영�� 또는 한국어 자막이 있는지 확인해주세요.", None
         
         # 워크시트 생성
         try:
