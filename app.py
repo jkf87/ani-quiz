@@ -13,12 +13,13 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 async def process_video(url):
     try:
         # 환경변수에서 API 키 가져오기
-        API_KEY = os.getenv('GEMINI_API_KEY')
+        GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+        YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
         
-        if not API_KEY:
-            return "ERROR: GEMINI_API_KEY가 설정되지 않았습니다.", None
+        if not GEMINI_API_KEY or not YOUTUBE_API_KEY:
+            return "ERROR: API 키가 설정되지 않았습니다.", None
         
-        worksheet = YouTubeWorksheet(API_KEY)
+        worksheet = YouTubeWorksheet(GEMINI_API_KEY, YOUTUBE_API_KEY)
         
         # 자막 추출 (타임아웃 설정)
         try:
@@ -32,7 +33,7 @@ async def process_video(url):
             return f"자막 추출 중 오류 발생: {str(e)}", None
             
         if not transcript:
-            return "자막을 추출할 수 없습니다. 영상에 영�� 또는 한국어 자막이 있는지 확인해주세요.", None
+            return "자막을 추출할 수 없습니다. 영상에 영어 또는 한국어 자막이 있는지 확인해주세요.", None
         
         # 워크시트 생성
         try:
