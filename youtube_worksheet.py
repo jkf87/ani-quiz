@@ -2,6 +2,11 @@ from youtube_transcript_api import YouTubeTranscriptApi
 import google.generativeai as genai
 from docx import Document
 import re
+import os
+import requests
+from requests.exceptions import RequestException
+import http.client
+http.client.HTTPConnection.debuglevel = 1
 
 class YouTubeWorksheet:
     def __init__(self, api_key):
@@ -9,6 +14,15 @@ class YouTubeWorksheet:
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel('gemini-1.5-pro')
         
+        # 프록시 설정 (환경 변수에서 가져오기)
+        self.proxies = {
+            'http': os.getenv('HTTP_PROXY'),
+            'https': os.getenv('HTTPS_PROXY')
+        }
+        
+        # 타임아웃 설정
+        self.timeout = 30
+
     def get_video_id(self, url):
         # YouTube URL에서 video ID 추출
         video_id = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11}).*', url)
@@ -18,28 +32,56 @@ class YouTubeWorksheet:
         video_id = self.get_video_id(url)
         if not video_id:
             return None
-        try:
-            # 사용 가능한 모든 자막 목록을 먼저 확인
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
             
-            # 자동 생성된 자막 포함하여 시도
-            transcript = transcript_list.find_transcript(['en', 'ko'])
-            return ' '.join([entry['text'] for entry in transcript.fetch()])
+        try:
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                    transcript = transcript_list.find_transcript(['en', 'ko'])
+                    
+                    # 프록시 설정이 있는 경우에만 세션 사용
+                    if any(self.proxies.values()):
+                        session = requests.Session()
+                        session.proxies = self.proxies
+                        session.timeout = self.timeout
+                    
+                    result = transcript.fetch()
+                    return ' '.join([entry['text'] for entry in result])
+                    
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        raise
+                    print(f"시도 {attempt + 1} 실패: {str(e)}. 재시도 중...")
+                    continue
+                    
         except Exception as e:
             print(f"자막 추출 오류: {e}")
             print(f"비디오 ID: {video_id}")
+            print(f"프록시 설정: {self.proxies}")
             return None
 
     def create_worksheet(self, transcript):
         prompt = f"""
-        다음 텍스트를 문장별로 나누고, 각 문장에 대해:
-        1. 빈칸 문제 만들기 (중요 단어를 ___로 대체)
-        2. 한국어로 번역하기
+        다음 텍스트의 각 문장에 대해 학습 워크시트를 만들어주세요:
+        
+        1. 영어 문장에서 중요한 단어나 구를 ___로 대체하여 빈칸 문제를 만드세요
+        2. 각 문장의 한국어 번역을 제공하세요
+        3. 빈칸에 들어갈 정답(단어나 구)을 별도로 표시하세요
+        
+        형식:
+            - 첫 번째 열: 빈칸이 있는 영어 문장
+            - 두 번째 열: 한국어 번역
+            - 세 번째 열: 빈칸에 들어갈 정답 단어나 구
+        
+        예시:
+            It is ___ to meet you.|당신을 만나서 반갑습니다.|nice
+            I ___ to school every day.|나는 매일 학교에 갑니다.|go
         
         텍스트: {transcript}
         
         표 형식으로 출력:
-        원문장|빈칸 문제|한국어 번역
+        문제|한국어 번역|정답
         """
         
         response = self.model.generate_content(prompt)
@@ -55,7 +97,7 @@ class YouTubeWorksheet:
         table.style = 'Table Grid'
         
         # 헤더 추가
-        headers = ['원문장', '빈칸 문제', '한국어 번역']
+        headers = ['빈제', '한국어 번역', '정답']
         for i, header in enumerate(headers):
             table.cell(0, i).text = header
             
